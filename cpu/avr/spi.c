@@ -32,6 +32,10 @@
 
 #include "contiki-conf.h"
 
+#define MOSI PB3
+#define MISO PB4
+#define SCK  PB5
+#define CSN  PB2
 /*
  * On the Tmote sky access to I2C/SPI/UART0 must always be
  * exclusive. Set spi_busy so that interrupt handlers can check if
@@ -55,4 +59,24 @@ spi_init(void)
   /* Enables SPI, selects "master", clock rate FCK / 2, and SPI mode 0 */
   SPCR = BV(SPE) | BV(MSTR);
   SPSR = BV(SPI2X);
+}
+
+void spi_write(uint8_t data) {
+  SPDR = data;
+  while(!(SPSR & BV(SPIF)));
+}
+
+uint8_t spi_read(void) {
+  SPDR = 0xFF; // Envia dummy byte
+  while(!(SPSR & BV(SPIF)));
+  return SPDR;
+}
+
+// Essas duas assumem que CSN está no pino definido como SS (por padrão PB2 = CSN)
+void spi_enable(void) {
+  PORTB &= ~BV(CSN); // CSN LOW
+}
+
+void spi_disable(void) {
+  PORTB |= BV(CSN);  // CSN HIGH
 }
