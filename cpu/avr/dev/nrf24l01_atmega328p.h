@@ -68,12 +68,25 @@
 #define NRF24_REG_RX_ADDR_P0  0x0A
 #define NRF24_REG_RX_ADDR_P1  0x0B
 #define NRF24_REG_TX_ADDR     0x10
+#define NRF24_REG_RX_PW_P0    0x11
+#define NRF24_REG_RX_PW_P1    0x12
 #define NRF24_REG_FIFO_STATUS 0x17
 
 void nrf24_init(void);
+void nrf24_reset(void);
+void nrf24_power_down(void);
+void nrf24_power_up(void);
+void nrf24_set_tx_address(const uint8_t *addr, uint8_t len);
+void nrf24_set_rx_address(uint8_t pipe, const uint8_t *addr, uint8_t len);
+void nrf24_set_tx_mode(void);
+void nrf24_set_rx_mode(void);
 bool nrf24_send(const void *data, uint8_t len);
 int nrf24_receive(void *buf, uint8_t bufsize);
 uint8_t nrf24_status(void);
 uint8_t nrf_read_register(uint8_t reg);
+
+// Auxiliares
+void nrf_write_payload(const uint8_t *data, uint8_t len);
+void nrf_read_payload(uint8_t *data, uint8_t len);
 
 #endif /* NRF24L01_ATMEGA328P_H_ */
