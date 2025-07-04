@@ -12,6 +12,30 @@
 #define CSN_HIGH() (NRF_CSN_PORT |= (1 << NRF_CSN_PIN))
 #define CSN_LOW()  (NRF_CSN_PORT &= ~(1 << NRF_CSN_PIN))
 
+/* Comandos SPI */
+#define CMD_R_REGISTER       0x00
+#define CMD_W_REGISTER       0x20
+#define CMD_R_RX_PAYLOAD     0x61
+#define CMD_W_TX_PAYLOAD     0xA0
+#define CMD_FLUSH_TX         0xE1
+#define CMD_FLUSH_RX         0xE2
+#define CMD_NOP              0xFF
+#define CMD_REUSE_TX_PL      0xE3
+#define CMD_ACTIVATE         0x50
+#define CMD_R_RX_PL_WID      0x60
+#define CMD_W_ACK_PAYLOAD    0xA8
+#define CMD_W_TX_PAYLOAD_NO_ACK 0xB0
+
+/* Funções auxiliares internas */
+static void nrf_csn_low(void) { CSN_LOW(); }
+static void nrf_csn_high(void) { CSN_HIGH(); }
+
+static void nrf_ce_pulse(void) {
+  CE_HIGH();
+  _delay_us(15);
+  CE_LOW();
+}
+
 void nrf24_init(void)
 {
   NRF_CE_DDR  |= (1 << NRF_CE_PIN);
@@ -24,8 +48,12 @@ void nrf24_init(void)
   _delay_ms(100); // Tempo de boot do modulo
 
   // CONFIG: PWR_UP | PRIM_RX | CRC habilitado (2 bytes)
-  uint8_t config = 0b00001111; // 0x0F
+  uint8_t config = 0x0F; // 0b00001111
   nrf_write_register(NRF24_REG_CONFIG, &config, 1);
+
+  _delay_ms(5);
+  uint8_t confirm_config = nrf_read_register(NRF24_REG_CONFIG); // APAGAR
+  printf("NRF CONFIG REGISTER = 0x%02X\n", confirm_config);
 
   // EN_RXADDR: Habilita pipe 0
   uint8_t en_rxaddr = 0x01;
@@ -48,6 +76,81 @@ void nrf24_init(void)
   _delay_ms(2);
 }
 
+/* Função axuliar de escrita em registrador */
+void nrf_write_register(uint8_t reg, const uint8_t *data, uint8_t len)
+{
+  printf("WRITE: reg=0x%02X len=%d\n", reg, len);
+  for (uint8_t i = 0; i < len; i++)
+    printf("  val[%d] = 0x%02X\n", i, data[i]);
+  
+  CSN_LOW(); // Ativa CSN
+
+  spi_transfer(CMD_W_REGISTER | (reg & 0x1F)); // Comando de escrita
+  for(uint8_t i = 0; i < len; i++) spi_write(data[i]);
+
+  printf("Wrote %d bytes to register 0x%02X\n", len, reg);
+
+  CSN_HIGH(); // Desativa CSN
+}
+
+/* Função de leitura de um registrador específico */
+uint8_t nrf_read_register(uint8_t reg) {
+    uint8_t value;
+
+    CSN_LOW(); // Ativa CSN
+
+    spi_transfer(CMD_R_REGISTER | (reg & 0x1F)); // Comando de leitura
+    
+    value = spi_transfer(CMD_NOP); // Lê o valor do registrador
+    printf("READ: reg=0x%02X value=0x%02X\n", reg, value);
+
+    CSN_HIGH(); // Desativa CSN
+    
+    return value;
+}
+
+/* Função auxiliar de leitura de registrador */
+void nrf_read_register_bytes(uint8_t reg, uint8_t *data, uint8_t len)
+{
+  CSN_LOW();
+  
+  spi_transfer(CMD_R_REGISTER | (reg & 0x1F)); // Comando de leitura
+  for(uint8_t i = 0; i < len; i++) data[i] = spi_transfer(CMD_NOP); // Lê os dados
+  
+  CSN_HIGH();
+}
+
+/* Função de leitura do registrador STATUS */
+uint8_t nrf_get_status(void)
+{
+  CSN_LOW();
+
+  uint8_t status = spi_transfer(CMD_NOP); // Lê o status
+  printf("NRF STATUS = 0x%02X\n", status);
+
+  CSN_HIGH();
+  return status;
+}
+
+/* --- PAYLOAD --- */
+void nrf_write_payload(const uint8_t *data, uint8_t len) {
+  CSN_LOW();
+
+  spi_transfer(CMD_W_TX_PAYLOAD); // Comando W_TX_PAYLOAD
+  for (uint8_t i = 0; i < len; i++) spi_transfer(data[i]);
+  printf("Wrote %d bytes to payload\n", len);
+
+  CSN_HIGH();
+}
+
+void nrf24_read_payload(uint8_t *data, uint8_t len) {
+  CSN_LOW();
+
+  spi_transfer(CMD_R_RX_PAYLOAD);
+  for(uint8_t i = 0; i < len; i++) data[i] = spi_transfer(CMD_NOP);
+  
+  CSN_HIGH();
+}
 void nrf24_reset(void)
 {
   // Reseta o rádio para o estado inicial
@@ -99,11 +202,8 @@ void nrf24_set_rx_address(uint8_t pipe, const uint8_t *addr, uint8_t len)
   if (pipe > 1 || len > 5) return; // Apenas pipes 0 e 1, máximo de 5 bytes
 
   // Define o endereço de recepção para o pipe especificado
-  if (pipe == 0) {
-    nrf_write_register(NRF24_REG_RX_ADDR_P0, addr, len);
-  } else if (pipe == 1) {
-    nrf_write_register(NRF24_REG_RX_ADDR_P1, addr, len);
-  }
+  uint8_t reg = (pipe == 0) ? NRF24_REG_RX_ADDR_P0 : NRF24_REG_RX_ADDR_P1;
+  nrf_write_register(reg, addr, len);
 }
 
 void nrf24_set_tx_mode(void)
@@ -112,8 +212,10 @@ void nrf24_set_tx_mode(void)
 
   // Coloca o rádio em modo TX
   uint8_t config = nrf_read_register(NRF24_REG_CONFIG);
+  printf("tx_mode_reading: NRF CONFIG REGISTER = 0x%02X\n", config);
   config |= (1 << 1); // PWR_UP
   config &= ~(1 << 0); // PRIM_RX = 0
+  printf("tx_mode_writing: NRF CONFIG REGISTER  = 0x%02X\n", config);
   nrf_write_register(NRF24_REG_CONFIG, &config, 1);
   
   // Espera o rádio estabilizar
@@ -122,10 +224,13 @@ void nrf24_set_tx_mode(void)
 
 void nrf24_set_rx_mode(void)
 {
+  CE_LOW(); // Desliga CE para evitar transmissão acidental
   // Coloca o rádio em modo RX
   uint8_t config = nrf_read_register(NRF24_REG_CONFIG);
-  config |= (1 << 0); // PRIM_RX = 1
+  printf("rx_mode_reading: NRF CONFIG REGISTER = 0x%02X\n", config);
   config |= (1 << 1); // PWR_UP
+  config |= (1 << 0); // PRIM_RX = 1
+  printf("rx_mode_writing: NRF CONFIG REGISTER  = 0x%02X\n", config);
   nrf_write_register(NRF24_REG_CONFIG, &config, 1);
 
   CE_HIGH(); // Ativa CE para iniciar recepção
@@ -202,6 +307,16 @@ void nrf_write_payload(const uint8_t *data, uint8_t len) {
   CSN_HIGH();
 }
 
+void nrf24_read_payload(uint8_t *data, uint8_t len) {
+  /*CSN_LOW();
+  spi_transfer(NRF24_CMD_R_RX_PAYLOAD);
+  for(uint8_t i = 0; i < len; i++) {
+    data[i] = spi_transfer(NRF24_CMD_NOP);
+  }
+  CSN_HIGH();
+  */
+}
+
 int nrf24_receive(void *buf, uint8_t bufsize)
 {
   uint8_t status = nrf_get_status();
@@ -226,52 +341,8 @@ int nrf24_receive(void *buf, uint8_t bufsize)
   return bufsize;
 }
 
-
 uint8_t nrf24_status(void)
 {
   /* Placeholder para ler o status do rádio */
   return 0;
-}
-
-/* Função axuliar de escrita em registrador */
-void nrf_write_register(uint8_t reg, const uint8_t *data, uint8_t len)
-{
-  CSN_LOW();
-  spi_write(0x20 | reg); // Comando de escrita
-  for(uint8_t i = 0; i < len; i++) {
-    spi_write(data[i]);
-  }
-  CSN_HIGH();
-}
-
-/* Função auxiliar de leitura de registrador */
-void nrf_read_register_bytes(uint8_t reg, uint8_t *data, uint8_t len)
-{
-  CSN_LOW();
-  spi_write(reg); // Comando de leitura
-  for(uint8_t i = 0; i < len; i++) {
-    data[i] = spi_read();
-  }
-  CSN_HIGH();
-}
-
-/* Função de leitura do registrador STATUS */
-uint8_t nrf_get_status(void)
-{
-  CSN_LOW();
-  uint8_t status = spi_read(); // NOP retorna STATUS
-  CSN_HIGH();
-  return status;
-}
-
-/* Função de leitura de um registrador específico */
-uint8_t nrf_read_register(uint8_t reg) {
-    uint8_t value;
-
-    spi_enable();
-    spi_write(reg & 0x1F);
-    value = spi_read();
-    spi_disable();
-
-    return value;
 }
