@@ -86,7 +86,7 @@ void nrf_write_register(uint8_t reg, const uint8_t *data, uint8_t len)
   CSN_LOW(); // Ativa CSN
 
   spi_transfer(CMD_W_REGISTER | (reg & 0x1F)); // Comando de escrita
-  for(uint8_t i = 0; i < len; i++) spi_write(data[i]);
+  for(uint8_t i = 0; i < len; i++) spi_transfer(data[i]);
 
   printf("Wrote %d bytes to register 0x%02X\n", len, reg);
 
@@ -102,7 +102,7 @@ uint8_t nrf_read_register(uint8_t reg) {
     spi_transfer(CMD_R_REGISTER | (reg & 0x1F)); // Comando de leitura
     
     value = spi_transfer(CMD_NOP); // Lê o valor do registrador
-    printf("READ: reg=0x%02X value=0x%02X\n", reg, value);
+    // printf("READ: reg=0x%02X value=0x%02X\n", reg, value);
 
     CSN_HIGH(); // Desativa CSN
     
@@ -238,18 +238,9 @@ void nrf24_set_rx_mode(void)
 
 bool nrf24_send(const void *data, uint8_t len)
 {
-  // Carrega no FIFO
-  CSN_LOW();
-  spi_write(0xA0); // Comando W_TX_PAYLOAD
-  for (uint8_t i = 0; i < len; i++) {
-    spi_write(((const uint8_t*)data)[i]);
-  }
-  CSN_HIGH();
-
-  // Pulso em CE para iniciar a transmissão
-  CE_HIGH();
-  _delay_us(15); // >=10us
-  CE_LOW();
+  nrf24_set_tx_mode(); // Coloca o rádio em modo TX (CONSIDERAR CONTROLAR NO APP)
+  nrf_write_payload(data, len); // Envia os dados
+  nrf_ce_pulse(); // Pulso em CE para iniciar a transmissão
 
   // Aguarda resultado
   uint8_t status;
@@ -258,14 +249,33 @@ bool nrf24_send(const void *data, uint8_t len)
   {
     status = nrf_read_register(NRF24_REG_STATUS);
     _delay_ms(1); // Espera 1ms entre leituras
-  } while (!(status & (1 << 5)) && !(status & (1 << 4)) && --timeout);
+  } while (!(status & (1 << 5)) && !(status & (1 << 4)) && --timeout); // TX_DS ou MAX_RT ou timeout
   
   // Limpa Flags
   uint8_t clear = 0x70; // Limpa TX_DS e MAX_RT
   nrf_write_register(NRF24_REG_STATUS, &clear, 1);
+  printf("Cleared STATUS: 0x%02X\n", clear);
 
   return (status & (1 << 5)); // Retorna true se TX_DS (transmissão bem-sucedida)
+}
 
+int nrf24_receive(void *buf, uint8_t bufsize)
+{
+  uint8_t status = nrf_get_status();
+
+  // Verifica se há dados disponíveis
+  if (!(status & (1 << 6))) { // RX_DR (bit 6)
+    return 0;
+  }
+
+  // Lê os dados - nrf_read_payload
+  nrf24_read_payload((uint8_t *) buf, bufsize); // Lê o payload recebido
+
+  // Limpa bit RX_DR
+  uint8_t clear = 0x40;
+  nrf_write_register(NRF24_REG_STATUS, &clear, 1);
+
+  return bufsize;
 }
 
 bool nrf24_send_std(const void *data, uint8_t len)
@@ -296,53 +306,4 @@ bool nrf24_send_std(const void *data, uint8_t len)
   nrf_write_register(NRF24_REG_STATUS, &clear, 1);
 
   return true;
-}
-
-void nrf_write_payload(const uint8_t *data, uint8_t len) {
-  CSN_LOW();
-  spi_write(0xA0); // Comando W_TX_PAYLOAD
-  for (uint8_t i = 0; i < len; i++) {
-    spi_write(data[i]);
-  }
-  CSN_HIGH();
-}
-
-void nrf24_read_payload(uint8_t *data, uint8_t len) {
-  /*CSN_LOW();
-  spi_transfer(NRF24_CMD_R_RX_PAYLOAD);
-  for(uint8_t i = 0; i < len; i++) {
-    data[i] = spi_transfer(NRF24_CMD_NOP);
-  }
-  CSN_HIGH();
-  */
-}
-
-int nrf24_receive(void *buf, uint8_t bufsize)
-{
-  uint8_t status = nrf_get_status();
-
-  // Verifica se há dados disponíveis
-  if (!(status & (1 << 6))) { // RX_DR (bit 6)
-    return 0;
-  }
-
-  // Lê os dados - nrf_read_payload
-  CSN_LOW();
-  spi_write(0x61); // R_RX_PAYLOAD
-  for (uint8_t i = 0; i < bufsize; i++) {
-    ((uint8_t*)buf)[i] = spi_read();
-  }
-  CSN_HIGH();
-
-  // Limpa bit RX_DR
-  uint8_t clear = 0x40;
-  nrf_write_register(NRF24_REG_STATUS, &clear, 1);
-
-  return bufsize;
-}
-
-uint8_t nrf24_status(void)
-{
-  /* Placeholder para ler o status do rádio */
-  return 0;
 }
