@@ -45,16 +45,25 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// Pinos SPI e controle
+// MISO - D12
+// MOSI - D11
+// SCK  - D13
+// CSN  - D10 (PB2)
+// CE   - D9  (PB1)
+// VCC - 3.3V
+// GND - GND
+
 /* Define os pinos do SPI e CE, CSN */
-#define NRF_CE_PORT  PORTD
-#define NRF_CE_DDR   DDRD
-#define NRF_CE_PIN   PD7
+#define NRF_CE_PORT  PORTB
+#define NRF_CE_DDR   DDRB
+#define NRF_CE_PIN   PB1
 
-#define NRF_CSN_PORT PORTD
-#define NRF_CSN_DDR  DDRD
-#define NRF_CSN_PIN  PD6
+#define NRF_CSN_PORT PORTB
+#define NRF_CSN_DDR  DDRB
+#define NRF_CSN_PIN  PB2
 
-/* Comandos e registradores nRF24L01 */
+/* Registradores nRF24L01 */
 #define NRF24_REG_CONFIG      0x00
 #define NRF24_REG_EN_AA       0x01
 #define NRF24_REG_EN_RXADDR   0x02
@@ -73,6 +82,7 @@
 #define NRF24_REG_FIFO_STATUS 0x17
 
 void nrf24_init(void);
+void nrf24_config(uint16_t kbps, uint8_t channel, uint8_t payload_size);
 void nrf24_reset(void);
 void nrf24_power_down(void);
 void nrf24_power_up(void);
@@ -81,9 +91,13 @@ void nrf24_set_rx_address(uint8_t pipe, const uint8_t *addr, uint8_t len);
 void nrf24_set_tx_mode(void);
 void nrf24_set_rx_mode(void);
 bool nrf24_send(const void *data, uint8_t len);
+bool nrf24_send_std(const void *data, uint8_t len);
 int nrf24_receive(void *buf, uint8_t bufsize);
-uint8_t nrf24_status(void);
+uint8_t nrf_get_status(void);
+bool nrf_data_available(void);
 uint8_t nrf_read_register(uint8_t reg);
+void nrf_read_register_bytes(uint8_t reg, uint8_t *data, uint8_t len);
+void nrf_write_register(uint8_t reg, const uint8_t *data, uint8_t len);
 
 // Auxiliares
 void nrf_write_payload(const uint8_t *data, uint8_t len);

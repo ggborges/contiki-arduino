@@ -11,11 +11,16 @@ PROCESS_THREAD(nrf_receiver_process, ev, data)
   static struct etimer timer;
   static uint8_t buffer[8];
   static int len;
+  uint8_t addr[5] = "NODEA"; // Endereço de recepção
 
   PROCESS_BEGIN();
 
   nrf24_init(); // já configura PRIM_RX e CE_HIGH()
-  nrf24_set_rx_address(0, (const uint8_t *)"NODEA", 5); // Define o endereço de recepção
+  
+  uint8_t test_status = nrf_get_status();
+  printf("STATUS inicial após init: 0x%02X\n", test_status);
+  
+  nrf24_set_rx_address(0, addr, 5); // Define o endereço de recepção
   nrf24_set_rx_mode(); // Coloca o rádio em modo RX
 
   printf("Esperando mensagens...\n");
@@ -24,6 +29,9 @@ PROCESS_THREAD(nrf_receiver_process, ev, data)
     etimer_set(&timer, CLOCK_SECOND * 5);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
 
+    uint8_t status = nrf_get_status();
+    printf("Status do NRF antes de receber: 0x%02X\n", status);
+
     int len = nrf24_receive(buffer, sizeof(buffer));
     if (len > 0) {
       printf("Recebido: ");
@@ -31,6 +39,8 @@ PROCESS_THREAD(nrf_receiver_process, ev, data)
         printf("%c", buffer[i]);
       }
       printf("\n");
+    } else {
+      printf("Nenhuma mensagem recebida.\n");
     }
   }
 

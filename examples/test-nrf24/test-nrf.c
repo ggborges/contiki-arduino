@@ -1,3 +1,5 @@
+
+
 #include "contiki.h"
 #include "sys/autostart.h"
 #include "sys/etimer.h"
@@ -16,6 +18,10 @@ PROCESS_THREAD(nrf_test_process, ev, data)
 
     PROCESS_BEGIN();
     nrf24_init(); // Inicializa o NRF24
+
+    uint8_t config = nrf_read_register(NRF24_REG_CONFIG);
+    printf("NRF CONFIG REGISTER = 0x%02X\n", config);
+
     printf("NRF24 Test Process started\n");
 
     while(1) {

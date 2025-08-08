@@ -1,6 +1,13 @@
 {
   "C_Cpp.errorSquiggles": "disabled",
   "files.associations": {
-    "contiki.h": "c"
+    "contiki.h": "c",
+    "array": "c",
+    "string": "c",
+    "string_view": "c",
+    "cstdint": "c",
+    "nrf24l01_atmega328p_aux.h": "c",
+    "stdbool.h": "c",
+    "contiki-conf.h": "c"
   }
 }

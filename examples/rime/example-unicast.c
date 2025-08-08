@@ -41,9 +41,9 @@
 #include "contiki.h"
 #include "net/rime.h"
 
-#include "dev/button-sensor.h"
+// #include "dev/button-sensor.h" - COMENTADO PARA TESTE
 
-#include "dev/leds.h"
+// #include "dev/leds.h" - COMENTADO PARA TESTE
 
 #include <stdio.h>
 
@@ -76,7 +76,7 @@ PROCESS_THREAD(example_unicast_process, ev, data)
     
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
 
-    packetbuf_copyfrom("Hello", 5);
+    packetbuf_copyfrom("H", 1);
     addr.u8[0] = 1;
     addr.u8[1] = 0;
     if(!rimeaddr_cmp(&addr, &rimeaddr_node_addr)) {

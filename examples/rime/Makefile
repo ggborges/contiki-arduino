@@ -1,7 +1,9 @@
+CONTIKI_PROJECT = example-broadcast-2
+all: $(CONTIKI_PROJECT)
+CONTIKI_WITH_RIME = 1
+
+LDFLAGS += -Wl,--gc-sections
+
+#UIP_CONF_IPV6=1 (se o wifi exigir)
 CONTIKI = ../..
-
-all: example-abc example-mesh example-collect example-trickle example-polite \
-     example-rudolph0 example-rudolph1 example-rudolph2 example-rucb \
-     example-runicast example-unicast example-neighbors
-
 include $(CONTIKI)/Makefile.include

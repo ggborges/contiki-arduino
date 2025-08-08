@@ -11,12 +11,12 @@
 
 #include $(CONTIKI)/Makefile.include
 
-CONTIKI_PROJECT = test-nrf
+CONTIKI_PROJECT = simple-receiver simple-sender writing-config-reg
 CONTIKI = ../..
 TARGET = arduino
 ARDUINO_MODEL = Uno
 
-PROJECT_SOURCEFILES += nrf24l01_atmega328p.c spi.c
+PROJECT_SOURCEFILES += nrf24l01_atmega328p_aux.c spi.c
 CFLAGS += -I$(CONTIKI)/cpu/avr -I$(CONTIKI)/cpu/avr/dev
 
 include ../../Makefile.include
