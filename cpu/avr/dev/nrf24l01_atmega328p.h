@@ -46,9 +46,9 @@
 #include <stdbool.h>
 
 // Pinos SPI e controle
-// MISO - D12
-// MOSI - D11
-// SCK  - D13
+// MISO - D12 (PB4)
+// MOSI - D11 (PB3)
+// SCK  - D13 (PB5)
 // CSN  - D10 (PB2)
 // CE   - D9  (PB1)
 // VCC - 3.3V

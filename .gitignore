@@ -16,6 +16,7 @@ tools/tunslip6
 .vscode/
 cpu/avr/dev/nrf24l01_atmega328p_aux.h
 cpu/avr/dev/nrf24l01_atmega328p_aux.c
+cpu/avr/dev/backup_nrf24l01+.c
 examples/test-loopback-mosi-miso/
 examples/test-nrf-sending-digits/
 examples/test-pure-writing/
